@@ -1,0 +1,11 @@
+# 引擎生成目录（不进版本库）
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+*.sln
+
+# 本地配置文件
+*.user
+*.suo
