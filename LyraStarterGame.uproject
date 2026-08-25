@@ -65,6 +65,14 @@
 			"Enabled": true
 		},
 		{
+			"Name": "Puerts",
+			"Enabled": true
+		},
+		{
+			"Name": "RuntimeFilesDownloader",
+			"Enabled": true
+		},
+		{
 			"Name": "WinDualShock",
 			"Enabled": true,
 			"SupportedTargetPlatforms": [
@@ -341,6 +349,10 @@
 		},
 		{
 			"Name": "Reflex",
+			"Enabled": true
+		},
+		{
+			"Name": "HotPatcher",
 			"Enabled": true
 		}
 	],

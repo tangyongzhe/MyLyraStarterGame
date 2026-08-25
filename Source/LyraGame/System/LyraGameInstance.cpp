@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LyraGameInstance.h"
+#include "Extern/UeDownloadHelper.h"
 
 #include "CommonSessionSubsystem.h"
 #include "CommonUserSubsystem.h"
@@ -11,6 +12,8 @@
 #include "Player/LyraPlayerController.h"
 #include "Player/LyraLocalPlayer.h"
 #include "GameFramework/PlayerState.h"
+#include "Async/Async.h"
+#include "JsEnv.h"
 
 #if UE_WITH_DTLS
 #include "DTLSCertStore.h"
@@ -49,8 +52,8 @@ namespace Lyra
 	static FAutoConsoleCommandWithWorldAndArgs CmdGenerateDTLSCertificate(
 		TEXT("GenerateDTLSCertificate"),
 		TEXT("Generate a DTLS self-signed certificate for testing and export to PEM."),
-		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& InArgs, UWorld* InWorld)
-			{
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString> &InArgs, UWorld *InWorld)
+															  {
 				if (InArgs.Num() == 1)
 				{
 					const FString& CertName = InArgs[0];
@@ -74,13 +77,12 @@ namespace Lyra
 				else
 				{
 					UE_LOG(LogTemp, Error, TEXT("GenerateDTLSCertificate: Invalid argument(s)."));
-				}
-			}));
+				} }));
 #endif // UE_BUILD_SHIPPING
 #endif // UE_WITH_DTLS
 };
 
-ULyraGameInstance::ULyraGameInstance(const FObjectInitializer& ObjectInitializer)
+ULyraGameInstance::ULyraGameInstance(const FObjectInitializer &ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 }
@@ -90,7 +92,7 @@ void ULyraGameInstance::Init()
 	Super::Init();
 
 	// Register our custom init states
-	UGameFrameworkComponentManager* ComponentManager = GetSubsystem<UGameFrameworkComponentManager>(this);
+	UGameFrameworkComponentManager *ComponentManager = GetSubsystem<UGameFrameworkComponentManager>(this);
 
 	if (ensure(ComponentManager))
 	{
@@ -108,23 +110,124 @@ void ULyraGameInstance::Init()
 		DebugTestEncryptionKey[i] = uint8(i);
 	}
 
-	if (UCommonSessionSubsystem* SessionSubsystem = GetSubsystem<UCommonSessionSubsystem>())
+	if (UCommonSessionSubsystem *SessionSubsystem = GetSubsystem<UCommonSessionSubsystem>())
 	{
 		SessionSubsystem->OnPreClientTravelEvent.AddUObject(this, &ULyraGameInstance::OnPreClientTravelToSession);
 	}
 }
 
+void ULyraGameInstance::OnStart()
+{
+	Super::OnStart();
+
+	// 二次启动：先挂载本地已下载的 CDN pak（PakOrder=100+，高于首包），
+	// 保证 JsEnv 加载的是最新 Code，而非首包旧代码
+	UUeDownloadHelper::GetInstance()->MountLocalCdnPaks();
+	UE_LOG(LogTemp, Log, TEXT("[HotUpdate] OnStart: 本地 CDN pak 挂载完成，创建 JsEnv(8080)"));
+
+	StartLyraScriptRuntime();
+}
+
 void ULyraGameInstance::Shutdown()
 {
-	if (UCommonSessionSubsystem* SessionSubsystem = GetSubsystem<UCommonSessionSubsystem>())
+	if (UCommonSessionSubsystem *SessionSubsystem = GetSubsystem<UCommonSessionSubsystem>())
 	{
 		SessionSubsystem->OnPreClientTravelEvent.RemoveAll(this);
 	}
 
+	UE_LOG(LogTemp, Log, TEXT("[LyraPuerts] Shutdown: JsEnv will be released with the game instance"));
+	GameScript.Reset();
 	Super::Shutdown();
 }
 
-ALyraPlayerController* ULyraGameInstance::GetPrimaryPlayerController() const
+void ULyraGameInstance::StartLyraScriptRuntime()
+{
+	if (GameScript.IsValid())
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("[LyraPuerts] StartLyraScriptRuntime skipped because JsEnv already exists"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[LyraPuerts] Creating JsEnv and starting entry module 'Start'"));
+	GameScript = MakeShared<puerts::FJsEnv>(std::make_unique<puerts::DefaultJSModuleLoader>(TEXT("JavaScript")), std::make_shared<puerts::FDefaultLogger>(), 8080);
+
+	TArray<TPair<FString, UObject *>> Arguments;
+	Arguments.Emplace(TEXT("GameInstance"), this);
+
+	GameScript->Start("Start", Arguments);
+}
+
+void ULyraGameInstance::RestartJsEnv()
+{
+	UE_LOG(LogTemp, Log, TEXT("[LyraPuerts] RestartJsEnv requested"));
+
+	// 先解绑旧 JsEnv 的 Tick 委托，防止广播到已销毁对象
+	NotifyUpdate.Clear();
+
+	AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<ULyraGameInstance>(this)]()
+			  {
+		if (!WeakThis.IsValid())
+		{
+			return;
+		}
+
+		ULyraGameInstance* Self = WeakThis.Get();
+		// 仅回收 UMG Widget UObject，不调用 RemoveAllViewportWidgets（会清除 SGameLayerManager
+		// 导致 AddToViewport 失效）。Slate Widget 树由 JS 侧 UIManager.destroyLayer 清理。
+		CollectGarbage(RF_NoFlags);
+		CollectGarbage(RF_NoFlags);
+
+		// 销毁旧 JsEnv（v8 隔离区，require 缓存清空，所有 JS 均为最新）
+		Self->GameScript.Reset();
+		UE_LOG(LogTemp, Log, TEXT("[HotUpdate] RestartJsEnv: 旧 JsEnv 已销毁，重建新虚拟机"));
+
+		// 按 OnStart 相同参数重建 JsEnv，新虚拟机加载已挂载的最新 Code
+		Self->GameScript = MakeShared<puerts::FJsEnv>(
+			std::make_unique<puerts::DefaultJSModuleLoader>(TEXT("JavaScript")),
+			std::make_shared<puerts::FDefaultLogger>(), 8080);
+
+		TArray<TPair<FString, UObject*>> Arguments;
+		Arguments.Add(TPair<FString, UObject*>(TEXT("GameInstance"), Self));
+		Self->GameScript->Start("Start", Arguments);
+		UE_LOG(LogTemp, Log, TEXT("[HotUpdate] RestartJsEnv: 新 JsEnv 已 Start(\"Start\")，最新 Code 生效")); });
+}
+
+int32 ULyraGameInstance::GetNetworkConnectionStatus() const
+{
+	return static_cast<int32>(FGenericPlatformMisc::GetNetworkConnectionStatus());
+}
+
+bool ULyraGameInstance::IsEditorEnvironment() const
+{
+	return GIsEditor;
+}
+
+bool ULyraGameInstance::IsDebugPackage() const
+{
+	// 打包类型由打包面板在整包前固化到 DefaultGame.ini 的 [Lyra] IsDebugPackage：
+	// Debug 包=true，Release 包=false。无配置（旧包）回退 false，与 Release 行为一致。
+	int32 IsDebugPackage = 0;
+	GConfig->GetInt(TEXT("Lyra"), TEXT("IsDebugPackage"), IsDebugPackage, GGameIni);
+	return IsDebugPackage == 1;
+}
+
+void ULyraGameInstance::Tick(float DeltaTime)
+{
+	GameDeltaTime = DeltaTime;
+	NotifyUpdate.Broadcast();
+}
+
+bool ULyraGameInstance::IsTickable() const
+{
+	return IsValid(GetWorld());
+}
+
+TStatId ULyraGameInstance::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(ULyraGameInstance, STATGROUP_Tickables);
+}
+
+ALyraPlayerController *ULyraGameInstance::GetPrimaryPlayerController() const
 {
 	return Cast<ALyraPlayerController>(Super::GetPrimaryPlayerController(false));
 }
@@ -140,14 +243,14 @@ bool ULyraGameInstance::CanJoinRequestedSession() const
 	return true;
 }
 
-void ULyraGameInstance::HandlerUserInitialized(const UCommonUserInfo* UserInfo, bool bSuccess, FText Error, ECommonUserPrivilege RequestedPrivilege, ECommonUserOnlineContext OnlineContext)
+void ULyraGameInstance::HandlerUserInitialized(const UCommonUserInfo *UserInfo, bool bSuccess, FText Error, ECommonUserPrivilege RequestedPrivilege, ECommonUserOnlineContext OnlineContext)
 {
 	Super::HandlerUserInitialized(UserInfo, bSuccess, Error, RequestedPrivilege, OnlineContext);
 
 	// If login succeeded, tell the local player to load their settings
 	if (bSuccess && ensure(UserInfo))
 	{
-		ULyraLocalPlayer* LocalPlayer = Cast<ULyraLocalPlayer>(GetLocalPlayerByIndex(UserInfo->LocalPlayerIndex));
+		ULyraLocalPlayer *LocalPlayer = Cast<ULyraLocalPlayer>(GetLocalPlayerByIndex(UserInfo->LocalPlayerIndex));
 
 		// There will not be a local player attached to the dedicated server user
 		if (LocalPlayer)
@@ -157,7 +260,7 @@ void ULyraGameInstance::HandlerUserInitialized(const UCommonUserInfo* UserInfo, 
 	}
 }
 
-void ULyraGameInstance::ReceivedNetworkEncryptionToken(const FString& EncryptionToken, const FOnEncryptionKeyResponse& Delegate)
+void ULyraGameInstance::ReceivedNetworkEncryptionToken(const FString &EncryptionToken, const FOnEncryptionKeyResponse &Delegate)
 {
 	// This is a simple implementation to demonstrate using encryption for game traffic using a hardcoded key.
 	// For a complete implementation, you would likely want to retrieve the encryption key from a secure source,
@@ -235,7 +338,7 @@ void ULyraGameInstance::ReceivedNetworkEncryptionToken(const FString& Encryption
 	Delegate.ExecuteIfBound(Response);
 }
 
-void ULyraGameInstance::ReceivedNetworkEncryptionAck(const FOnEncryptionKeyResponse& Delegate)
+void ULyraGameInstance::ReceivedNetworkEncryptionAck(const FOnEncryptionKeyResponse &Delegate)
 {
 	// This is a simple implementation to demonstrate using encryption for game traffic using a hardcoded key.
 	// For a complete implementation, you would likely want to retrieve the encryption key from a secure source,
@@ -249,11 +352,11 @@ void ULyraGameInstance::ReceivedNetworkEncryptionAck(const FOnEncryptionKeyRespo
 	{
 		Response.Response = EEncryptionResponse::Failure;
 
-		APlayerController* const PlayerController = GetFirstLocalPlayerController();
+		APlayerController *const PlayerController = GetFirstLocalPlayerController();
 
 		if (PlayerController && PlayerController->PlayerState && PlayerController->PlayerState->GetUniqueId().IsValid())
 		{
-			const FUniqueNetIdRepl& PlayerUniqueId = PlayerController->PlayerState->GetUniqueId();
+			const FUniqueNetIdRepl &PlayerUniqueId = PlayerController->PlayerState->GetUniqueId();
 
 			// Ideally the encryption token is passed in directly rather than having to attempt to rebuild it
 			const FString EncryptionToken = PlayerUniqueId.ToString();
@@ -310,7 +413,7 @@ void ULyraGameInstance::ReceivedNetworkEncryptionAck(const FOnEncryptionKeyRespo
 	Delegate.ExecuteIfBound(Response);
 }
 
-void ULyraGameInstance::OnPreClientTravelToSession(FString& URL)
+void ULyraGameInstance::OnPreClientTravelToSession(FString &URL)
 {
 	// Add debug encryption token if desired.
 	if (Lyra::bTestEncryption)
@@ -318,11 +421,11 @@ void ULyraGameInstance::OnPreClientTravelToSession(FString& URL)
 #if UE_WITH_DTLS
 		if (Lyra::bUseDTLSEncryption)
 		{
-			APlayerController* const PlayerController = GetFirstLocalPlayerController();
+			APlayerController *const PlayerController = GetFirstLocalPlayerController();
 
 			if (PlayerController && PlayerController->PlayerState && PlayerController->PlayerState->GetUniqueId().IsValid())
 			{
-				const FUniqueNetIdRepl& PlayerUniqueId = PlayerController->PlayerState->GetUniqueId();
+				const FUniqueNetIdRepl &PlayerUniqueId = PlayerController->PlayerState->GetUniqueId();
 				const FString EncryptionToken = PlayerUniqueId.ToString();
 
 				URL += TEXT("?EncryptionToken=") + EncryptionToken;

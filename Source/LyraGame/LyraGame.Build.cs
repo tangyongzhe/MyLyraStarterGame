@@ -42,8 +42,14 @@ public class LyraGame : ModuleRules
 				"Niagara",
 				"AsyncMixin",
 				"ControlFlows",
-				"PropertyPath"
-			}
+				"PropertyPath",
+				"JsEnv",
+				"Puerts",
+				"RuntimeFilesDownloader",
+				"PakFile",
+				"HTTP",
+                "HotPatcherRuntime"
+            }
 		);
 
 		PrivateDependencyModuleNames.AddRange(
@@ -74,6 +80,8 @@ public class LyraGame : ModuleRules
 				"EngineSettings",
 				"DTLSHandlerComponent",
 				"Json",
+				"JsonUtilities",
+				"ImageWrapper",
 			}
 		);
 

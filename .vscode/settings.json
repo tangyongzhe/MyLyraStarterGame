@@ -1,0 +1,62 @@
+{
+    "[typescript]": {
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "never",
+            "source.addMissingImports": "always",
+        }
+    },
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true,
+    "typescript.format.placeOpenBraceOnNewLineForControlBlocks": false,
+    "typescript.format.placeOpenBraceOnNewLineForFunctions": false,
+    "typescript.format.semicolons": "insert",
+    "typescript.inlayHints.parameterNames.enabled": "all",
+    "cSpell.words": [
+        "Inited",
+        "Zipline",
+        "Ziplining"
+    ],
+    "files.watcherExclude": {
+        "**/node_modules/**": true,
+        "**/.git/**": true,
+        "**/dist/**": true,
+        "**/build/**": true,
+        "**/*.log": true,
+        "**/coverage/**": true,
+        "**/Content/**": true,
+        "**/DerivedDataCache/**": true,
+        "**/Intermediate/**": true,
+        "**/Saved/**": true
+    },
+    "files.exclude": {
+        "**/node_modules/**": true,
+        "**/.git/**": true,
+        "**/dist/**": true,
+        "**/build/**": true,
+        "**/*.log": true,
+        "**/coverage/**": true,
+        "**/Binaries/**": true,
+        "**/Content/Characters/**": true,
+        "**/Content/Cinematics/**": true,
+        "**/Content/Collections/**": true,
+        "**/Content/DesignerConfig/**": true,
+        "**/Content/DesignerContent/**": true,
+        "**/Content/Developers/**": true,
+        "**/Content/Editor/**": true,
+        "**/Content/Effects/**": true,
+        "**/Content/Envrionment/**": true,
+        "**/Content/LevelGame/**": true,
+        "**/Content/Maps/**": true,
+        "**/Content/Materials/**": true,
+        "**/Content/Movies/**": true,
+        "**/Content/Splash/**": true,
+        "**/Content/WwiseAudio/**": true,
+        "**/Content/__ExternalActors__/**": true,
+        "**/Content/__ExternalObjects__/**": true,
+        "**/DerivedDataCache/**": true,
+        "**/Intermediate/**": true,
+        "**/Saved/**": true
+    },
+}

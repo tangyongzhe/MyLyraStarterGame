@@ -2,7 +2,6 @@
 
 #include "Modules/ModuleManager.h"
 
-
 /**
  * FLyraGameModule
  */
