@@ -1,0 +1,12 @@
+E:\F\Others\UEProject\LyraStarterGame\Binaries\DotNET\UnrealBuildTool\Plugins\CSharpParamDefaultValueMetas\CSharpParamDefaultValueMetas.deps.json
+E:\F\Others\UEProject\LyraStarterGame\Binaries\DotNET\UnrealBuildTool\Plugins\CSharpParamDefaultValueMetas\CSharpParamDefaultValueMetas.dll
+E:\F\Others\UEProject\LyraStarterGame\Binaries\DotNET\UnrealBuildTool\Plugins\CSharpParamDefaultValueMetas\ref\CSharpParamDefaultValueMetas.dll
+E:\F\Others\UEProject\LyraStarterGame\Binaries\DotNET\UnrealBuildTool\Plugins\CSharpParamDefaultValueMetas\CSharpParamDefaultValueMetas.pdb
+E:\F\Others\UEProject\LyraStarterGame\Plugins\Puerts\Source\CSharpParamDefaultValueMetas\obj\Development\CSharpParamDefaultValueMetas.ubtplugin.csproj.AssemblyReference.cache
+E:\F\Others\UEProject\LyraStarterGame\Plugins\Puerts\Source\CSharpParamDefaultValueMetas\obj\Development\CSharpParamDefaultValueMetas.ubtplugin.GeneratedMSBuildEditorConfig.editorconfig
+E:\F\Others\UEProject\LyraStarterGame\Plugins\Puerts\Source\CSharpParamDefaultValueMetas\obj\Development\CSharpParamDefaultValueMetas.ubtplugin.csproj.CoreCompileInputs.cache
+E:\F\Others\UEProject\LyraStarterGame\Plugins\Puerts\Source\CSharpParamDefaultValueMetas\obj\Development\CSharpParamDefaultValueMetas.ubtplugin.sourcelink.json
+E:\F\Others\UEProject\LyraStarterGame\Plugins\Puerts\Source\CSharpParamDefaultValueMetas\obj\Development\CSharpPa.E71C88CE.Up2Date
+E:\F\Others\UEProject\LyraStarterGame\Plugins\Puerts\Source\CSharpParamDefaultValueMetas\obj\Development\CSharpParamDefaultValueMetas.dll
+E:\F\Others\UEProject\LyraStarterGame\Plugins\Puerts\Source\CSharpParamDefaultValueMetas\obj\Development\refint\CSharpParamDefaultValueMetas.dll
+E:\F\Others\UEProject\LyraStarterGame\Plugins\Puerts\Source\CSharpParamDefaultValueMetas\obj\Development\CSharpParamDefaultValueMetas.pdb

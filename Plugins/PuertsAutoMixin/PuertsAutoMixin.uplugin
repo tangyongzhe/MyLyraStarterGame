@@ -1,0 +1,42 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.2",
+  "FriendlyName": "PuertsAutoMixin",
+  "Description": "",
+  "CreatedBy": "BoilTask",
+  "CreatedByURL": "https://www.boiltask.com/",
+  "CanContainContent": false,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": false,
+  "Installed": true,
+  "Modules": [
+    {
+      "Name": "PuertsAutoMixin",
+      "Type": "Runtime",
+      "LoadingPhase": "PostEngineInit",
+      "PlatformAllowList": [
+        "Win64",
+        "Android",
+        "Mac",
+        "IOS",
+        "Linux"
+      ]
+    },
+    {
+      "Name": "PuertsAutoMixinEditor",
+      "Type": "Editor",
+      "LoadingPhase": "Default",
+      "WhitelistPlatforms": [
+        "Win64",
+        "Mac"
+      ]
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "Puerts",
+      "Enabled": true
+    }
+  ]
+}

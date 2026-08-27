@@ -4,6 +4,8 @@
 
 #include "CommonGameInstance.h"
 #include "Tickable.h"
+#include "PuertsAutoMixinLibrary.h"
+#include "SourceFileWatcher.h"
 
 #include "LyraGameInstance.generated.h"
 
@@ -37,6 +39,9 @@ public:
 	UE_API virtual void ReceivedNetworkEncryptionAck(const FOnEncryptionKeyResponse& Delegate) override;
 	UE_API virtual void OnStart() override;
 	UE_API virtual void Shutdown() override;
+
+	UFUNCTION(BlueprintCallable, Category = "MetaGame|MetaGameInstance")
+	void BindMixin(const FPuertsAutoMixinDelegate& BindCallback);
 
 	/**
 	 * 重启整个 JS 虚拟机（Puerts JsEnv）。
@@ -79,6 +84,8 @@ protected:
 	UE_API void OnPreClientTravelToSession(FString& URL);
 	UE_API void StartLyraScriptRuntime();
 
+	void HotReloadJavaScriptEnv(const FString& Path);
+
 	/** A hard-coded encryption key used to try out the encryption code. This is NOT SECURE, do not use this technique in production! */
 	TArray<uint8> DebugTestEncryptionKey;
 
@@ -88,6 +95,10 @@ protected:
 	UPROPERTY()
 	float GameDeltaTime = 0.0f;
 	TSharedPtr<puerts::FJsEnv> GameScript;
+
+#if WITH_EDITOR
+	TSharedPtr<PUERTS_NAMESPACE::FSourceFileWatcher> SourceFileWatcher;
+#endif
 };
 
 #undef UE_API

@@ -1,0 +1,4 @@
+# This CSV mirror documents the minimal AttributeConfig data seeded for AttrExporter validation.
+# The actual xlsx workbook is generated separately because the tool requires .xlsx input.
+# Columns expected by AttrExporter on row 4: Id, Remarks, Key, Affected
+# Data starts on row 6.

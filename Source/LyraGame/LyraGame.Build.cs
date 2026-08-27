@@ -16,6 +16,7 @@ public class LyraGame : ModuleRules
 
 		PrivateIncludePaths.AddRange(
 			new string[] {
+				System.IO.Path.GetFullPath(System.IO.Path.Combine(ModuleDirectory, "..", "..", "Plugins", "Puerts", "Source", "Puerts", "Private"))
 			}
 		);
 
@@ -82,7 +83,9 @@ public class LyraGame : ModuleRules
 				"Json",
 				"JsonUtilities",
 				"ImageWrapper",
-			}
+                "JsEnv",
+                "PuertsAutoMixin"
+            }
 		);
 
 		DynamicallyLoadedModuleNames.AddRange(

@@ -1,0 +1,53 @@
+﻿#pragma once
+
+#include "CoreMinimal.h"
+
+#include "PuertsAutoMixinSetting.generated.h"
+
+UCLASS(config = PuertsAutoMixin, defaultconfig, meta = (DisplayName = "PuertsAutoMixin"))
+class PUERTSAUTOMIXIN_API UPuertsAutoMixinSetting : public UObject
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(
+        config
+        , EditAnywhere
+        , Category = "Default PuertsAutoMixin Environment"
+        , meta = (DisplayName = "Enable JS Env In Editor", defaultValue = false)
+    )
+    bool bEnableEnvInEditor = false;
+    UPROPERTY(
+        config
+        , EditAnywhere
+        , Category = "Default PuertsAutoMixin Environment"
+        , meta = (DisplayName = "Enable JS Env In Game", defaultValue = false)
+    )
+    bool bEnableEnvInGame = false;
+
+    UPROPERTY(config, EditAnywhere, Category = "Default PuertsAutoMixin Environment",
+        meta = (defaultValue = "EditorStart"))
+    FString StartModule = "EditorStart";
+
+    UPROPERTY(
+        config
+        , EditAnywhere
+        , Category = "Default PuertsAutoMixin Environment"
+        , meta = (DisplayName = "Debug Port", defaultValue = 8081)
+    )
+    int32 DebugPort = 8081;
+
+    UPROPERTY(config
+        , EditAnywhere
+        , Category = "Default PuertsAutoMixin Environment"
+        , meta = (DisplayName = "Wait Debugger", defaultValue = false)
+    )
+    bool WaitDebugger = false;
+
+    UPROPERTY(config
+        , EditAnywhere
+        , Category = "Default PuertsAutoMixin Environment"
+        , meta = (DisplayName = "Wait Debugger Timeout", defaultValue = 0)
+    )
+    double WaitDebuggerTimeout = 0;
+};

@@ -10,7 +10,7 @@
             "name": "TypeScript-Debug",
             "address": "localhost",
             "port": 8080,
-            "localRoot": "${workspaceFolder}",
+            "localRoot": "${workspaceFolder}/TypeScript",
             "sourceMaps": true,
             "cwd": "${workspaceFolder}",
             "skipFiles": [

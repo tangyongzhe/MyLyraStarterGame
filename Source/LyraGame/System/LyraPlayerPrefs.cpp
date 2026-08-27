@@ -76,19 +76,26 @@ ULyraPlayerPrefsSaveGame *ULyraPlayerPrefs::GetOrCreateSaveGame()
 {
 	if (Data)
 	{
-		return Data;
+		if (IsValid(Data) && Data->IsA<ULyraPlayerPrefsSaveGame>())
+		{
+			return Data;
+		}
+
+		Data = nullptr;
 	}
 
 	if (USaveGame *LoadedSaveGame = UGameplayStatics::LoadGameFromSlot(ULyraPlayerPrefsSaveGame::SlotName, 0))
 	{
-		Data = Cast<ULyraPlayerPrefsSaveGame>(LoadedSaveGame);
+		if (ULyraPlayerPrefsSaveGame *LoadedPrefs = Cast<ULyraPlayerPrefsSaveGame>(LoadedSaveGame))
+		{
+			Data = LoadedPrefs;
+			return Data;
+		}
+		
+		Data = nullptr;
 	}
 
-	if (!Data)
-	{
-		Data = Cast<ULyraPlayerPrefsSaveGame>(UGameplayStatics::CreateSaveGameObject(ULyraPlayerPrefsSaveGame::StaticClass()));
-	}
-
+	Data = Cast<ULyraPlayerPrefsSaveGame>(UGameplayStatics::CreateSaveGameObject(ULyraPlayerPrefsSaveGame::StaticClass()));
 	return Data;
 }
 

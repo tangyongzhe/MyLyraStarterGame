@@ -14,6 +14,9 @@
 #include "GameFramework/PlayerState.h"
 #include "Async/Async.h"
 #include "JsEnv.h"
+#include "PuertsSetting.h"
+#include "PuertsAutoMixinModule.h"
+#include "SourceFileWatcher.h"
 
 #if UE_WITH_DTLS
 #include "DTLSCertStore.h"
@@ -136,25 +139,79 @@ void ULyraGameInstance::Shutdown()
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[LyraPuerts] Shutdown: JsEnv will be released with the game instance"));
-	GameScript.Reset();
+
+	if (GameScript.IsValid())
+	{
+		GameScript.Reset();
+	}
+
+	if (SourceFileWatcher.IsValid())
+	{
+		SourceFileWatcher.Reset();
+	}
+
 	Super::Shutdown();
 }
 
 void ULyraGameInstance::StartLyraScriptRuntime()
 {
+#if WITH_EDITOR
+
+	std::function<void(const FString&)> SourceLoadedCallback = nullptr;
+
+	SourceFileWatcher = MakeShared<PUERTS_NAMESPACE::FSourceFileWatcher>(
+		[this](const FString& InPath)
+		{
+			HotReloadJavaScriptEnv(InPath);
+		});
+	SourceLoadedCallback = [this](const FString& InPath)
+		{
+			if (SourceFileWatcher.IsValid())
+			{
+				SourceFileWatcher->OnSourceLoaded(InPath);
+			}
+		};
+#endif
+
 	if (GameScript.IsValid())
 	{
 		UE_LOG(LogTemp, Verbose, TEXT("[LyraPuerts] StartLyraScriptRuntime skipped because JsEnv already exists"));
 		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[LyraPuerts] Creating JsEnv and starting entry module 'Start'"));
-	GameScript = MakeShared<puerts::FJsEnv>(std::make_unique<puerts::DefaultJSModuleLoader>(TEXT("JavaScript")), std::make_shared<puerts::FDefaultLogger>(), 8080);
+	const UPuertsSetting& PuertsSettings = *GetDefault<UPuertsSetting>();
+	const int32 DebugPort = PuertsSettings.DebugEnable ? PuertsSettings.DebugPort : -1;
+
+	UE_LOG(LogTemp, Log, TEXT("[LyraPuerts] Creating JsEnv and starting entry module 'Start' (DebugEnable=%s, Port=%d, WaitDebugger=%s, Timeout=%.3f)"),
+		PuertsSettings.DebugEnable ? TEXT("true") : TEXT("false"),
+		DebugPort,
+		PuertsSettings.WaitDebugger ? TEXT("true") : TEXT("false"),
+		PuertsSettings.WaitDebuggerTimeout);
+	GameScript = MakeShared<puerts::FJsEnv>(
+		std::make_unique<puerts::DefaultJSModuleLoader>(TEXT("JavaScript")),
+		std::make_shared<puerts::FDefaultLogger>(),
+		DebugPort,
+		[](const FString& ScriptUrl)
+		{
+			UE_LOG(LogTemp, Verbose, TEXT("[LyraPuerts] Source loaded: %s"), *ScriptUrl);
+		});
+
+	if (PuertsSettings.WaitDebugger)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[LyraPuerts] Waiting for debugger before Start(\"Start\")"));
+		GameScript->WaitDebugger(PuertsSettings.WaitDebuggerTimeout);
+	}
 
 	TArray<TPair<FString, UObject *>> Arguments;
 	Arguments.Emplace(TEXT("GameInstance"), this);
 
 	GameScript->Start("Start", Arguments);
+}
+
+void ULyraGameInstance::BindMixin(const FPuertsAutoMixinDelegate& BindCallback)
+{
+	IPuertsAutoMixinModule& Module = FModuleManager::LoadModuleChecked<IPuertsAutoMixinModule>("PuertsAutoMixin");
+	Module.RegisterBindDelegate(GameScript, BindCallback);
 }
 
 void ULyraGameInstance::RestartJsEnv()
@@ -182,9 +239,22 @@ void ULyraGameInstance::RestartJsEnv()
 		UE_LOG(LogTemp, Log, TEXT("[HotUpdate] RestartJsEnv: 旧 JsEnv 已销毁，重建新虚拟机"));
 
 		// 按 OnStart 相同参数重建 JsEnv，新虚拟机加载已挂载的最新 Code
+		const UPuertsSetting& PuertsSettings = *GetDefault<UPuertsSetting>();
+		const int32 DebugPort = PuertsSettings.DebugEnable ? PuertsSettings.DebugPort : -1;
 		Self->GameScript = MakeShared<puerts::FJsEnv>(
 			std::make_unique<puerts::DefaultJSModuleLoader>(TEXT("JavaScript")),
-			std::make_shared<puerts::FDefaultLogger>(), 8080);
+			std::make_shared<puerts::FDefaultLogger>(),
+			DebugPort,
+			[](const FString& ScriptUrl)
+			{
+				UE_LOG(LogTemp, Verbose, TEXT("[LyraPuerts] Source loaded: %s"), *ScriptUrl);
+			});
+
+		if (PuertsSettings.WaitDebugger)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[LyraPuerts] Waiting for debugger before RestartJsEnv Start(\"Start\")"));
+			Self->GameScript->WaitDebugger(PuertsSettings.WaitDebuggerTimeout);
+		}
 
 		TArray<TPair<FString, UObject*>> Arguments;
 		Arguments.Add(TPair<FString, UObject*>(TEXT("GameInstance"), Self));
@@ -437,6 +507,24 @@ void ULyraGameInstance::OnPreClientTravelToSession(FString &URL)
 			// This is just a value for testing/debugging, the server will use the same key regardless of the token value.
 			// But the token could be a user ID and/or session ID that would be used to generate a unique key per user and/or session, if desired.
 			URL += TEXT("?EncryptionToken=1");
+		}
+	}
+}
+
+void ULyraGameInstance::HotReloadJavaScriptEnv(const FString& Path)
+{
+	if (GameScript.IsValid())
+	{
+		TArray<uint8> Source;
+		if (FFileHelper::LoadFileToArray(Source, *Path))
+		{
+			UE_LOG(LogTemp, Display, TEXT("read file success for %s"), *Path);
+			GameScript->ReloadSource(Path, puerts::PString(reinterpret_cast<const char*>(Source.GetData()), Source.Num()));
+			UE_LOG(LogTemp, Display, TEXT("read file success for %s"), *Path);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("read file fail for %s"), *Path);
 		}
 	}
 }

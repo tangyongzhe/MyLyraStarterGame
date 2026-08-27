@@ -1,0 +1,827 @@
+import { IManager } from "../../../Mono/Core/Manager/IManager"
+import { ManagerProvider } from "../../../Mono/Core/Manager/ManagerProvider"
+import { LinkedList } from "../../../Mono/Core/Object/LinkedList"
+import { Define } from '../../../Mono/Define';
+import { Log } from "../../../Mono/Module/Log/Log"
+import { TimerManager } from '../../../Mono/Module/Timer/TimerManager';
+import { CoroutineLockManager, CoroutineLock } from '../CoroutineLock/CoroutineLockManager';
+import { CoroutineLockType } from '../CoroutineLock/CoroutineLockType';
+import { IOnCreate } from './IOnCreate';
+import type { UIBaseView } from './UIBaseView';
+import { UILayer } from "./UILayer"
+import { UIWindow, UIWindowLoadingState } from './UIWindow';
+import * as string from "../../../Mono/Helper/StringHelper"
+import * as UE from 'ue'
+import { I18NManager } from '../I18N/I18NManager';
+import { II18N } from '../I18N/II18N';
+import { UILayerDefine } from "./UILayerDefine";
+import { UILayerNames } from "./UILayerNames";
+
+const configs :UILayerDefine[] = [
+    {
+        name : UILayerNames.GameBackgroundLayer,
+        planeDistance : 1000,
+        zOrder : 0,
+    },
+    {
+        name : UILayerNames.BackgroundLayer,//主界面、全屏的一些界面
+        planeDistance : 900,
+        zOrder : 1000,
+    },
+    {
+        name : UILayerNames.GameLayer,  //游戏内的View层
+        planeDistance : 800,
+        zOrder : 1800,
+    },
+    {
+        name : UILayerNames.SceneLayer,// 场景UI，如：点击建筑查看建筑信息---一般置于场景之上，界面UI之下
+        planeDistance : 700,
+        zOrder : 2000,
+    },
+    {
+        name : UILayerNames.NormalLayer, //普通UI，一级、二级、三级等窗口---一般由用户点击打开的多级窗口
+        planeDistance : 600,
+        zOrder : 3000,
+    },
+    {
+        name : UILayerNames.TipLayer,//提示UI，如：错误弹窗，网络连接弹窗等
+        planeDistance : 500,
+        zOrder : 4000,
+    },
+    {
+        name : UILayerNames.TopLayer,//顶层UI，如：场景加载
+        planeDistance : 400,
+        zOrder : 5000,
+    },
+]
+export class UIManager implements IManager {
+    private static _instance: UIManager;
+
+    public static get instance(): UIManager {
+        return UIManager._instance;
+    }
+
+    private static _typeMap: Map<string, new () => UIBaseView> = new Map();
+    private static _ctorMap: Map<new () => UIBaseView, string> = new Map();
+
+    public static register(name: string, ctor: new () => UIBaseView): void
+    {
+        UIManager._typeMap.set(name, ctor);
+        UIManager._ctorMap.set(ctor, name);
+    }
+
+    public static createView(name: string): UIBaseView
+    {
+        const ctor = UIManager._typeMap.get(name);
+        return ctor ? new ctor() : null;
+    }
+
+    public static getType(name: string): (new () => UIBaseView) | null
+    {
+        return UIManager._typeMap.get(name) ?? null;
+    }
+
+    public static getName(ctor: new () => UIBaseView): string | null
+    {
+        return UIManager._ctorMap.get(ctor) ?? null;
+    }
+
+    private _gameObject: UE.CanvasPanel;
+    private _rootLoading: UE.Widget;
+    private _uiRoot: UE.UserWidget;
+   
+    private layers: Map<UILayerNames, UILayer>;//所有可用的层级
+    private windowStack: Map<UILayerNames, LinkedList<new()=>any>>;//窗口记录队列
+    private windows: Map<new()=>any, UIWindow>; //所有存活的窗体  {uiName:window}
+
+    private boxes: Map<UIBaseView, UIWindow> ; //所有存活的消息盒子  {instance:window}
+    public RootTree: UE.WidgetTree
+    public init() {
+        UIManager._instance = this;
+        this.windows = new Map<new()=>any, UIWindow>();
+        this.windowStack = new Map<UILayerNames, LinkedList<new()=>any>>();
+        this.boxes = new Map<UIBaseView, UIWindow>();
+        this.initLayer();
+        // Messager.Instance.AddListener<int, int>(0, MessageId.OnKeyInput, OnKeyInput);
+    }
+
+    public destroy() {
+        // Messager.Instance.RemoveListener<int, int>(0, MessageId.OnKeyInput, OnKeyInput);
+        UIManager._instance = null;
+        this.onDestroyAsync();
+    }
+
+    private async onDestroyAsync() {
+        await this.destroyAllWindow();
+        this.windows.clear();
+        this.windows = null;
+        this.windowStack.clear();
+        this.windowStack = null;
+        this.destroyLayer();
+        Log.info("UIManagerComponent Destroy");
+    }
+
+    private initLayer() {
+        Log.info("UILayersComponent Awake");
+        const UIRootPath = "/Game/AssetsPackage/UI/UICommon/Prefabs/UIRoot.UIRoot_C";
+        const UIRootClass = UE.Class.Load(UIRootPath);
+        if(!UIRootClass){
+            Log.error("UIRoot class not found at path:"+UIRootPath);
+            return;
+        }
+        const UIRoot = UE.WidgetBlueprintLibrary.Create(Define.Game, UIRootClass, null) as UE.UserWidget;
+        UIRoot.AddToViewport();
+        this._uiRoot = UIRoot;
+        this.RootTree = UIRoot.WidgetTree;
+        const root = this.RootTree.RootWidget as UE.CanvasPanel;
+        this._gameObject = (root.GetChildAt(1) as UE.SafeZone).GetChildAt(0) as UE.CanvasPanel;
+        this._rootLoading = root.GetChildAt(0);
+        this.layers = new Map<UILayerNames, UILayer>();
+        for (let i = 0; i < configs.length; i++) {
+            var layer = configs[i];
+            const widget = UE.NewObject(UE.CanvasPanel.StaticClass(),null,UILayerNames[layer.name]) as UE.CanvasPanel;
+            const canvasSlot = this._gameObject.AddChildToCanvas(widget);
+            this.resetCanvasSlot(canvasSlot);
+            let newLayer: UILayer = ManagerProvider.registerManager<UILayer, UILayerDefine, UE.CanvasPanel, UE.CanvasPanelSlot>(UILayer, layer, widget, canvasSlot, null, UILayerNames[layer.name]);
+            this.layers.set(layer.name,newLayer);
+            this.windowStack.set(layer.name,new LinkedList<new()=>any>());
+            Log.info("create layer "+UILayerNames[layer.name]);
+        }
+    }
+
+    private destroyLayer(){
+        for (const [key,value] of this.layers) {
+            var obj = value.canvas;
+            obj.RemoveFromParent();
+        }
+        this.layers.clear();
+        this.layers = null;
+        // UIRoot（AddToViewport 添加的 UserWidget）也必须从视口移除，
+        // 否则 V8 销毁后 UIRoot 变为野指针，Slate 绘制时崩溃
+        if (this._uiRoot != null) {
+            this._uiRoot.RemoveFromViewport();
+            this._uiRoot = null;
+        }
+        this.RootTree = null;
+        Log.info("UILayersComponent Dispose");
+    }
+
+    public getLayer(layer: UILayerNames): UILayer
+    {
+        return this.layers.get(layer);
+    }
+    
+    /**
+     * 判断窗口打开状态
+     * @param ui 
+     * @param active 2打开且loading,1打开,-1关闭,0不做限制
+     * @returns 
+     */
+    public isWindowActive<T extends UIBaseView | void>(ui: (new () => T)| UIBaseView|string, active:number = 0) {
+        const uiName = this.getUIName(ui);
+        let target = this.getWindow(uiName);
+        if (target == null)
+        {
+            return false;
+        }
+
+        if (active == 0 || active * (target.active ? 1 : -1) > 0)
+        {
+            if (active == 2)
+            {
+                return target.loadingState == UIWindowLoadingState.LoadOver;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * 获取UI窗口
+     * @param ui 
+     * @param active 2打开且loading,1打开，-1关闭,0不做限制
+     * @returns 
+     */
+    public getWindow(ui:new()=>any|string, active:number = 0):UIWindow{
+        const uiName = this.getUIName(ui);
+        const target = this.windows.get(uiName);
+        if (!!target)
+        {
+            if (active == 0 || active * (target.active ? 1 : -1) > 0)
+            {
+                if (active == 2)
+                {
+                    return target.loadingState == UIWindowLoadingState.LoadOver ? target : null;
+                }
+                return target;
+            }
+            return null;
+        }
+        return null;
+    }
+
+    /**
+     * 获取UI窗口
+     * @param ui 
+     * @param active 2打开且loading，1打开，-1关闭,0不做限制
+     * @returns 
+     */
+    public getView<T extends UIBaseView>(ui: (new () => T)|string,active:number = 0): T 
+    {
+        if (this.windows != null)
+        {
+            const uiName = this.getUIName(ui);
+            const target = this.windows.get(uiName);
+            if(!target)  return null;
+            if (active == 0 || active * (target.active ? 1 : -1) > 0)
+            {
+                if (active == 2)
+                {
+                    return target.loadingState == UIWindowLoadingState.LoadOver ? target.view as T : null;
+                }
+                return target.view as T;
+            }
+
+            return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * 获取最上层window
+     * @param ignore 忽略的层级
+     * @returns 
+     */
+    public getTopWindow(...ignore: UILayerNames[]): UIWindow
+    {
+        const ignores: Set<UILayerNames> = new Set<UILayerNames>()
+        for (let i = 0; i < ignore.length; i++)
+        {
+            ignores.add(ignore[i]);
+        }
+        let res: UIWindow = null;
+        for (let i = UILayerNames.TopLayer; i >= 0; i--)
+        {
+            var layer = i;
+            if (!ignores.has(layer))
+            {
+                var win = this.getLayerTopWindow(layer);
+                if (win != null) {
+                    res = win;
+                    break;
+                }
+            }
+        }
+        return res;
+    }
+
+    /**
+     * 获取最上层window
+     * @param layer 
+     * @returns 
+     */
+    public getLayerTopWindow(layer: UILayerNames): UIWindow {
+        var wins: LinkedList<new()=>any> = this.windowStack.get(layer);
+        if (wins.size <= 0) return null;
+        for (var node = wins.first; node != null; node = node.next)
+        {
+            var name = node.value;
+            var win = this.getWindow(name, 1);
+            if (win != null)
+                return win;
+        }
+
+        return null;
+    }
+
+    /**
+     * 打开窗口
+     * @param ui 
+     * @param path 预制体路径
+     * @param p1 
+     * @param p2 
+     * @param p3 
+     * @param p4 
+     * @param layerName UI层级
+     * @returns 
+     */
+    public async openWindow<T extends UIBaseView & IOnCreate, P1 = void, P2 = void, P3 = void, P4 = void>
+        (ui: string | (new () => T), path:string, p1?:P1, p2?:P2, p3?:P3, p4?:P4, layerName:UILayerNames = UILayerNames.NormalLayer) {
+        const uiName = this.getUIName(ui);
+        var target = this.getWindow(uiName);
+        if (target == null)
+        {
+            target = this.initWindow<T>(uiName, path, layerName);
+            this.windows.set(uiName, target);
+        }
+        target.layer = layerName;
+        return await this.innerOpenWindow<T, P1, P2, P3, P4>(target, p1, p2, p3, p4);
+    }
+
+    /**
+     * 打开消息盒子
+     * 和OpenWindow区别:
+     * 1.Window是单例，MsgBox支持多例
+     * 2.MsgBox关闭后会立即销毁
+     * @param ui 要打开的窗口
+     * @param path 
+     * @param p1 
+     * @param p2 
+     * @param p3 
+     * @param p4 
+     * @param layerName UI层级
+     * @param during 持续时间 小于0表示无限
+     * @returns 
+     */
+    public async openBox<T extends UIBaseView & IOnCreate, P1 = void, P2 = void, P3 = void, P4 = void>
+        (ui: (new () => T)|string, path:string, p1?:P1, p2?:P2, p3?:P3, p4?:P4, layerName:UILayerNames = UILayerNames.TipLayer, during:number = -1) {
+        const uiName = this.getUIName(ui);
+        var target = this.initWindow(uiName, path, layerName);
+        target.isBox = true;
+        target.layer = layerName;
+        var timeNow = TimerManager.instance.getTimeNow(); 
+        var res = await this.innerOpenWindow<T,P1,P2,P3,P4>(target, p1, p2, p3, p4);
+        this.boxes.set(res,target);
+        if (during > 0)
+        {
+            await this.closeBoxTillTime(res, timeNow + during);
+        }
+        return res;
+    }
+
+    /**
+     * 关闭窗体
+     * @param ui 
+     * @returns 
+     */
+    public async closeWindow<T extends UIBaseView | void>(ui: (new () => T)| UIBaseView| string) {
+        var target = this.getWindow(this.getUIName(ui), 1);
+        if (target == null) return;
+        while (target.loadingState != UIWindowLoadingState.LoadOver)
+        {
+            await TimerManager.instance.waitAsync(1);
+        }
+
+        this.removeFromStack(target);
+        this.innerCloseWindow(target);
+    }
+
+    /**
+     * 关闭消息盒子
+     * @param view 
+     * @param clear 
+     * @returns 
+     */
+    public async closeBox(view: UIBaseView, clear: boolean = false){
+        var target = this.boxes.get(view);
+        if(target == null){
+            return false;
+        }
+        while (target.loadingState != UIWindowLoadingState.LoadOver)
+        {
+            await TimerManager.instance.waitAsync(1);
+        }
+        if(this.boxes.has(view))
+        {
+            this.boxes.delete(view);
+            this.innerCloseWindow(target);
+            this.innerDestroyWindow(target, clear);
+            target.dispose();
+        }
+        return true;
+    }
+
+    /**
+     * 关闭消息盒子
+     * @param view 
+     * @param time 
+     * @returns 
+     */
+    public async closeBoxTillTime(view: UIBaseView, time:number){
+        var target = this.boxes.get(view);
+        if(target == null){
+            return;
+        }
+        while (target.loadingState != UIWindowLoadingState.LoadOver)
+        {
+            await TimerManager.instance.waitAsync(1);
+        }
+        await TimerManager.instance.waitTillAsync(time);
+        if(!this.boxes.has(view))
+        {
+            return;
+        }
+        this.innerCloseWindow(target);
+        this.innerDestroyWindow(target);
+        this.boxes.delete(view);
+        target.dispose();
+    }
+
+    /**
+     * 通过层级关闭
+     * @param layer 
+     * @param exceptUINames 
+     */
+    public async closeWindowByLayer(layer: UILayerNames, ...exceptUINames: Array<new()=>any>) {
+        const dictUINames: Set<new()=>any> = new Set<new()=>any>()
+    
+        if (exceptUINames != null && exceptUINames.length > 0)
+        {
+            for (let i = 0; i < exceptUINames.length; i++)
+            {
+                dictUINames.add(exceptUINames[i]);
+            }
+        }
+
+        const taskScheduler:Promise<void>[] = []
+        for (const [key,win] of this.windows)
+        {
+            if (win.layer == layer && (dictUINames == null || !dictUINames.has(key)))
+            {
+                taskScheduler[taskScheduler.length] = this.closeWindow(key);
+            }
+        }
+
+        await Promise.all(taskScheduler);
+    }
+
+    /**
+     * 销毁窗体
+     * @param ui 
+     * @param clear 
+     */
+    public async destroyWindow<T extends UIBaseView | void>(ui: (new () => T)| UIBaseView |string, clear:boolean = false){
+        const uiName = this.getUIName(ui);
+        let target = this.getWindow(uiName);
+        if (target != null)
+        {
+            while (target.loadingState != UIWindowLoadingState.LoadOver)
+            {
+                await TimerManager.instance.waitAsync(1);
+            }
+            if(this.windows.has(target.name))
+            {
+                this.windows.delete(target.name)
+                this.removeFromStack(target);
+                this.innerCloseWindow(target);
+                this.innerDestroyWindow(target, clear);
+                target.dispose();
+            }
+        }
+    }
+
+    /**
+     * 销毁隐藏状态的窗口
+     */
+    public async destroyUnShowWindow() {
+        const taskScheduler:Promise<void>[] = []
+        let keys = [...this.windows.keys()]
+        for (const key of keys)
+        {
+            if (!this.windows.get(key).active)
+            {
+                taskScheduler[taskScheduler.length] = this.destroyWindow(key);
+            }
+        }
+
+        await Promise.all(taskScheduler);
+    
+    }
+
+    /**
+     * 销毁除指定窗口外所有窗口
+     * @param typeNames 
+     */
+    public async destroyWindowExceptNames(...typeNames: Array<new()=>any>){
+        const dictUINames: Set<new()=>any> = new Set<new()=>any>()
+        if (typeNames != null)
+        {
+            for (let i = 0; i < typeNames.length; i++)
+            {
+                dictUINames.add(typeNames[i]);
+            }
+        }
+        
+        const taskScheduler:Promise<void>[] = []
+        const keys = Array.from(this.windows.keys());
+        for (const key of keys)
+        {
+            if (!dictUINames.has(key))
+            {
+                taskScheduler[taskScheduler.length] = this.destroyWindow(key);
+            }
+        }
+
+        await Promise.all(taskScheduler);
+    }
+
+    /**
+     * 销毁指定层级外层级所有窗口
+     * @param layer 
+     */
+    public async destroyWindowExceptLayer(layer: UILayerNames) {
+    
+        const taskScheduler:Promise<void>[] = []
+        let keys = [...this.windows.keys()]
+        for (const key of keys)
+        {
+            if (this.windows.get(key)?.layer != layer)
+            {
+                taskScheduler[taskScheduler.length] = this.destroyWindow(key);
+            }
+        }
+        await Promise.all(taskScheduler);
+    }
+
+    /**
+     * 销毁指定层级所有窗口
+     * @param layer 
+     */
+    public async destroyWindowByLayer(layer: UILayerNames) {
+    
+        const taskScheduler:Promise<void>[] = []
+        let keys = [...this.windows.keys()]
+        for (const key of keys)
+        {
+            if (this.windows.get(key)?.layer == layer)
+            {
+                taskScheduler[taskScheduler.length] = this.destroyWindow(key);
+            }
+        }
+        await Promise.all(taskScheduler);
+    }
+
+    /**
+     * 销毁所有窗体
+     */
+    public async destroyAllWindow(){
+        const taskScheduler:Promise<void>[] = []
+        let keys = [...this.windows.keys()]
+        for (const key of keys)
+        {
+            taskScheduler[taskScheduler.length] = this.destroyWindow(key);
+        }
+        await Promise.all(taskScheduler);
+    }
+
+    /**
+     * 将窗口移到当前层级最上方
+     * @param ui 
+     * @returns 
+     */
+    public moveWindowToTop<T extends UIBaseView>(ui: (new() => T) | UIBaseView |string)
+    {
+        const uiName = this.getUIName(ui);
+        var target = this.getWindow(uiName, 1);
+        if (target == null)
+        {
+            return;
+        }
+
+        var layerName = target.layer;
+        if (this.windowStack.get(layerName)?.contains(uiName))
+        {
+            this.windowStack.get(layerName).remove(uiName);
+        }
+
+        this.windowStack.get(layerName).addFirst(uiName);
+        this.innerAddWindowToStack(target);
+    }
+
+    /**
+     * 初始化window
+     * @param type 
+     * @param name 
+     * @param path 
+     * @param layerName 
+     * @returns 
+     */
+    private initWindow<T extends UIBaseView>(ui: string | (new () => T), path: string, layerName: UILayerNames): UIWindow {
+        const window: UIWindow = UIWindow.create();
+        window.name = this.getUIName(ui);
+        window.active = false;
+        window.layer = layerName;
+        window.loadingState = UIWindowLoadingState.NotStart;
+        window.prefabPath = path;
+        window.view = new window.name();
+        return window;
+    }
+
+    private async innerOpenWindow<T extends UIBaseView, P1 = void, P2 = void, P3 = void, P4 = void>
+        (target: UIWindow, p1?:P1, p2?:P2, p3?:P3, p4?:P4) {
+
+        let coroutineLock: CoroutineLock = null;
+        try
+        {
+            coroutineLock = await CoroutineLockManager.instance.wait(CoroutineLockType.UIManager, string.getHash(target.prefabPath));
+            target.active = true;
+            const res: T = target.view as T;
+            var needLoad = target.loadingState == UIWindowLoadingState.NotStart;
+            target.loadingState = UIWindowLoadingState.Loading;
+            if (needLoad)
+            {
+                const success = await this.innerOpenWindowGetGameObject(target.prefabPath, target);
+                if (!success)
+                {
+                    target.active = false;
+                    target.loadingState = UIWindowLoadingState.NotStart;
+                    return null;
+                }
+            }
+            this.innerResetWindowLayer(target);
+            await this.addWindowToStack(target, p1, p2, p3, p4);
+            target.loadingState = UIWindowLoadingState.LoadOver;
+            return res;
+        }
+        catch (e)
+        {
+            Log.error(e);
+        }
+        finally
+        {
+            coroutineLock?.dispose();
+        }
+    }
+
+    private async innerOpenWindowGetGameObject(path: string, target: UIWindow): Promise<boolean>
+    {
+        const view = target.view;
+        let UIClass = UE.Class.Find(path);
+        if(!UIClass)
+        {
+            UIClass = UE.Class.Load(path);
+        }
+        if(!UIClass)
+        {
+            Log.error(target.name + " class not found at path:"+path);
+            return false;
+        }
+        const UIRoot = UE.WidgetBlueprintLibrary.Create(Define.Game, UIClass, null) as UE.UserWidget;
+        target.userWidget = UIRoot;
+        var go = UIRoot.WidgetTree.RootWidget as UE.PanelWidget;
+        if (go == null)
+        {
+            Log.error(`UIManager InnerOpenWindow ${target.prefabPath} fail`);
+            return;
+        }
+        view.setWidget(go);
+        
+        var viewAny = view as any;
+        if(!!viewAny?.onCreate){
+            viewAny.onCreate();
+        }
+        if(!!viewAny?.onLanguageChange){
+            I18NManager.instance.registerI18NEntity(viewAny as II18N);
+        }
+
+        if(!!this._rootLoading){
+            this._rootLoading.RemoveFromParent();
+            this._rootLoading = null;
+        }
+        return true;
+    }
+
+    private innerResetWindowLayer(window: UIWindow)
+    {
+        var target = window;
+        var view = target.view;
+        var widget = view.getWidget();
+        if (!!widget)
+        {
+            var layer = this.getLayer(target.layer);
+            window.canvasSlot = layer.canvas.AddChildToCanvas(widget);
+            this.resetCanvasSlot(window.canvasSlot);
+        }
+    }
+
+    /**
+     * 内部关闭窗体，OnDisableSystem
+     * @param target 
+     */
+    private innerCloseWindow(target: UIWindow)
+    {
+        if (target.active)
+        {
+            this.deactivate(target);
+            target.active = false;
+        }
+    }
+
+    private deactivate(target: UIWindow)
+    {
+        var view = target.view;
+        if (!!view)
+            view.setActive(false);
+    }
+
+    private innerDestroyWindow(target: UIWindow, clear: boolean = false)
+    {
+        var view = target.view;
+        if (view != null)
+        {
+            var obj = target.userWidget;
+            if (obj)
+            {
+                obj.RemoveFromViewport();
+                // if (!GameObjectPoolManager.instance)
+                //     obj.destroy()
+                // else
+                //     GameObjectPoolManager.instance.recycleGameObject(obj, clear);
+            }
+            const viewAny = view as any;
+            if (!!viewAny.onLanguageChange)
+                I18NManager.instance?.removeI18NEntity(viewAny);
+            view.beforeOnDestroy();
+            if(!!viewAny.onDestroy)
+                viewAny.onDestroy();
+        }
+    }
+
+    private async addWindowToStack<P1 = void, P2 = void, P3 = void, P4 = void> (target: UIWindow, p1?:P1, p2?:P2, p3?:P3, p4?:P4) {
+        var uiName = target.name;
+        var layerName = target.layer;
+        let isFirst: boolean = true;
+        if (this.windowStack.get(layerName).contains(uiName))
+        {
+            isFirst = false;
+            this.windowStack.get(layerName).remove(uiName);
+        }
+
+        this.windowStack.get(layerName).addFirst(uiName);
+        this.innerAddWindowToStack(target);
+        var view = target.view;
+        view.setActive(true, p1, p2, p3, p4);
+        if (isFirst && (layerName == UILayerNames.BackgroundLayer || layerName == UILayerNames.GameBackgroundLayer))
+        {
+            //如果是背景layer，则销毁所有的normal层或BackgroundLayer
+            await this.closeWindowByLayer(UILayerNames.NormalLayer);
+            await this.closeWindowByLayer(UILayerNames.GameLayer);
+            await this.closeWindowByLayer(UILayerNames.BackgroundLayer, uiName);
+            await this.closeWindowByLayer(UILayerNames.GameBackgroundLayer, uiName);
+        }
+    }
+
+    private innerAddWindowToStack(target: UIWindow)
+    {
+        var view = target.view;
+        var uiTrans: UE.Widget = view.getWidget();
+        if (uiTrans != null)
+        {
+            var layer = this.getLayer(target.layer);
+            //重新添加一次移到最上面
+            target.canvasSlot = layer.canvas.AddChildToCanvas(uiTrans);
+            this.resetCanvasSlot(target.canvasSlot);
+        }
+    }
+
+    /**
+     * 移除
+     * @param target 
+     */
+    private removeFromStack(target: UIWindow)
+    {
+        var uiName = target.name;
+        var layerName = target.layer;
+        if (this.windowStack.has(layerName))
+        {
+            this.windowStack.get(layerName).remove(uiName);
+        }
+        else
+        {
+            Log.error("not layer, name :" + layerName);
+        }
+    }
+    
+    private resetCanvasSlot(canvasSlots: UE.CanvasPanelSlot){
+        let anchor = canvasSlots.GetAnchors();
+        anchor.Maximum.Set(1,1);
+        anchor.Minimum.Set(0,0)
+        canvasSlots.SetAnchors(anchor);
+        let offset = canvasSlots.GetOffsets()
+        offset.Left = 0;
+        offset.Right = 0;
+        offset.Top = 0;
+        offset.Bottom = 0;
+        canvasSlots.SetOffsets(offset);
+    }
+
+    private getUIName<T extends UIBaseView | void>(ui: (new () => T) | UIBaseView | string): new()=>any{
+        if(ui instanceof Function){
+            return ui;
+        } else if (typeof ui === 'string'){
+            const ctor = UIManager.getType(ui) as new () => T;
+            if (!ctor) {
+                Log.error("UIManager openWindow 类型未注册: " + ui);
+            }
+            return ctor;
+        } else{
+            var window = ui as UIBaseView;
+            return window.getConstructor() as new()=>T;
+        }       
+    }
+
+}
+
