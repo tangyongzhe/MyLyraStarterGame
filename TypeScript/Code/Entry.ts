@@ -1,4 +1,4 @@
-import * as UE from 'ue';
+import UE = require('ue');
 
 import { Log } from "../Mono/Module/Log/Log"
 import { ManagerProvider } from "../Mono/Core/Manager/ManagerProvider"

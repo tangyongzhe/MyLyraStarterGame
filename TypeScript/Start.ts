@@ -1,5 +1,5 @@
 import { Init } from './Mono/Init';
-import * as UE from 'ue';
+import UE = require('ue');
 import { argv, toDelegate } from 'puerts';
 import { Define } from './Mono/Define';
 import { ToMinix } from "./AutoMixin";

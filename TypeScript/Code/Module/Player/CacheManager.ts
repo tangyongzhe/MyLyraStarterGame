@@ -1,6 +1,6 @@
 import { IManager } from "../../../Mono/Core/Manager/IManager";
 import { JsonHelper } from "../../../Mono/Helper/JsonHelper";
-import * as UE from 'ue';
+import UE = require('ue');
 
 declare const puerts: {
     loadUEType(typeName: string): unknown;

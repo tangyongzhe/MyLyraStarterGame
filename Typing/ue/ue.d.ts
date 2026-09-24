@@ -72575,6 +72575,7 @@ declare module "ue" {
         constructor(Outer?: Object, Name?: string, ObjectFlags?: number);
         NotifyUpdate: $MulticastDelegate<() => void>;
         GameDeltaTime: number;
+        BindMixin(BindCallback: $Delegate<(_Class: $Nullable<UE.Class>, Module: string) => void>) : void;
         /*
          *获取当前网络连接状态（通过 FGenericPlatformMisc::GetNetworkConnectionStatus()）。
          *返回 ENetworkConnectionStatus：0=Unknown 1=Disabled 2=Local 3=Connected
@@ -247438,6 +247439,43 @@ declare module "ue" {
         static StaticClass(): ScriptStruct;
         static StaticStruct(): ScriptStruct;
         __tid_PublicAssetTag_0__: boolean;
+    }
+    
+    class PuertsAutoMixinLibrary extends UE.BlueprintFunctionLibrary {
+        constructor(Outer?: Object, Name?: string, ObjectFlags?: number);
+        static StaticClass(): Class;
+        static Find(OrigInName: string, Outer?: Object): PuertsAutoMixinLibrary;
+        static Load(InName: string): PuertsAutoMixinLibrary;
+    
+        __tid_PuertsAutoMixinLibrary_0__: boolean;
+    }
+    
+    class PuertsAutoMixinSetting extends UE.Object {
+        constructor(Outer?: Object, Name?: string, ObjectFlags?: number);
+        bEnableEnvInEditor: boolean;
+        bEnableEnvInGame: boolean;
+        StartModule: string;
+        DebugPort: number;
+        WaitDebugger: boolean;
+        WaitDebuggerTimeout: number;
+        static StaticClass(): Class;
+        static Find(OrigInName: string, Outer?: Object): PuertsAutoMixinSetting;
+        static Load(InName: string): PuertsAutoMixinSetting;
+    
+        __tid_PuertsAutoMixinSetting_0__: boolean;
+    }
+    
+    class PuertsInterface extends UE.Interface {
+        constructor(Outer?: Object, Name?: string, ObjectFlags?: number);
+        /*
+         *返回模块路径，如果没有export default，那么需要指定类名，比如 "._GameModule:MyClass"
+         */
+        GetJavaScriptModule() : string;
+        static StaticClass(): Class;
+        static Find(OrigInName: string, Outer?: Object): PuertsInterface;
+        static Load(InName: string): PuertsInterface;
+    
+        __tid_PuertsInterface_0__: boolean;
     }
     
     class PuertsSetting extends UE.Object {

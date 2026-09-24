@@ -1,4 +1,4 @@
-import * as UE from 'ue'
+import UE = require('ue')
 import { IConfigLoader } from "./IConfigLoader";
 import { Log } from "../../../Mono/Module/Log/Log";
 
@@ -11,9 +11,24 @@ import { Log } from "../../../Mono/Module/Log/Log";
  */
 export class ConfigLoader implements IConfigLoader {
 
+    private getLyraConfigLoader(): typeof UE.LyraConfigLoader | null {
+        const loader = UE.LyraConfigLoader;
+        if (!loader?.LoadConfigJson || !loader?.GetConfigJsonFileNames) {
+            Log.warning("LyraConfigLoader is unavailable during ConfigLoader access; config JSON loading will be skipped until the UE type is exposed.");
+            return null;
+        }
+
+        return loader;
+    }
+
     public async loadAllAsync(callback: (name: string, data: any) => void): Promise<void> {
+        const loader = this.getLyraConfigLoader();
+        if (!loader) {
+            return;
+        }
+
         // @ts-ignore  puer-ts 反射下静态函数返回 TArray<FString> 会被转成 {}，故 C++ 侧改为返回 "|" 分隔的 FString
-        const fileNames: string[] = UE.LyraConfigLoader.GetConfigJsonFileNames().split('|');
+        const fileNames: string[] = loader.GetConfigJsonFileNames().split('|');
         for (let i = 0; i < fileNames.length; i++) {
             const name = fileNames[i];
             const data = this.loadJson(name);
@@ -28,8 +43,13 @@ export class ConfigLoader implements IConfigLoader {
     }
 
     private loadJson(name: string): any {
+        const loader = this.getLyraConfigLoader();
+        if (!loader) {
+            return null;
+        }
+
         // @ts-ignore
-        const content: string = UE.LyraConfigLoader.LoadConfigJson(name);
+        const content: string = loader.LoadConfigJson(name);
         if (content == null || content.length == 0) {
             Log.error(`配置加载失败，文件不存在或内容为空：${name}.json`);
             return null;

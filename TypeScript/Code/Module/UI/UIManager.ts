@@ -11,11 +11,12 @@ import type { UIBaseView } from './UIBaseView';
 import { UILayer } from "./UILayer"
 import { UIWindow, UIWindowLoadingState } from './UIWindow';
 import * as string from "../../../Mono/Helper/StringHelper"
-import * as UE from 'ue'
+import UE = require('ue')
 import { I18NManager } from '../I18N/I18NManager';
 import { II18N } from '../I18N/II18N';
 import { UILayerDefine } from "./UILayerDefine";
 import { UILayerNames } from "./UILayerNames";
+import { loadWidgetClass } from "./UIWidgetLoader";
 
 const configs :UILayerDefine[] = [
     {
@@ -96,6 +97,11 @@ export class UIManager implements IManager {
 
     private boxes: Map<UIBaseView, UIWindow> ; //所有存活的消息盒子  {instance:window}
     public RootTree: UE.WidgetTree
+
+    private loadWidgetClass(path: string): UE.Class | null {
+        return loadWidgetClass(path);
+    }
+
     public init() {
         UIManager._instance = this;
         this.windows = new Map<new()=>any, UIWindow>();
@@ -124,7 +130,7 @@ export class UIManager implements IManager {
     private initLayer() {
         Log.info("UILayersComponent Awake");
         const UIRootPath = "/Game/AssetsPackage/UI/UICommon/Prefabs/UIRoot.UIRoot_C";
-        const UIRootClass = UE.Class.Load(UIRootPath);
+        const UIRootClass = this.loadWidgetClass(UIRootPath);
         if(!UIRootClass){
             Log.error("UIRoot class not found at path:"+UIRootPath);
             return;
@@ -297,17 +303,6 @@ export class UIManager implements IManager {
         return null;
     }
 
-    /**
-     * 打开窗口
-     * @param ui 
-     * @param path 预制体路径
-     * @param p1 
-     * @param p2 
-     * @param p3 
-     * @param p4 
-     * @param layerName UI层级
-     * @returns 
-     */
     public async openWindow<T extends UIBaseView & IOnCreate, P1 = void, P2 = void, P3 = void, P4 = void>
         (ui: string | (new () => T), path:string, p1?:P1, p2?:P2, p3?:P3, p4?:P4, layerName:UILayerNames = UILayerNames.NormalLayer) {
         const uiName = this.getUIName(ui);
@@ -321,21 +316,6 @@ export class UIManager implements IManager {
         return await this.innerOpenWindow<T, P1, P2, P3, P4>(target, p1, p2, p3, p4);
     }
 
-    /**
-     * 打开消息盒子
-     * 和OpenWindow区别:
-     * 1.Window是单例，MsgBox支持多例
-     * 2.MsgBox关闭后会立即销毁
-     * @param ui 要打开的窗口
-     * @param path 
-     * @param p1 
-     * @param p2 
-     * @param p3 
-     * @param p4 
-     * @param layerName UI层级
-     * @param during 持续时间 小于0表示无限
-     * @returns 
-     */
     public async openBox<T extends UIBaseView & IOnCreate, P1 = void, P2 = void, P3 = void, P4 = void>
         (ui: (new () => T)|string, path:string, p1?:P1, p2?:P2, p3?:P3, p4?:P4, layerName:UILayerNames = UILayerNames.TipLayer, during:number = -1) {
         const uiName = this.getUIName(ui);
@@ -352,11 +332,6 @@ export class UIManager implements IManager {
         return res;
     }
 
-    /**
-     * 关闭窗体
-     * @param ui 
-     * @returns 
-     */
     public async closeWindow<T extends UIBaseView | void>(ui: (new () => T)| UIBaseView| string) {
         var target = this.getWindow(this.getUIName(ui), 1);
         if (target == null) return;
@@ -369,12 +344,6 @@ export class UIManager implements IManager {
         this.innerCloseWindow(target);
     }
 
-    /**
-     * 关闭消息盒子
-     * @param view 
-     * @param clear 
-     * @returns 
-     */
     public async closeBox(view: UIBaseView, clear: boolean = false){
         var target = this.boxes.get(view);
         if(target == null){
@@ -394,12 +363,6 @@ export class UIManager implements IManager {
         return true;
     }
 
-    /**
-     * 关闭消息盒子
-     * @param view 
-     * @param time 
-     * @returns 
-     */
     public async closeBoxTillTime(view: UIBaseView, time:number){
         var target = this.boxes.get(view);
         if(target == null){
@@ -420,11 +383,6 @@ export class UIManager implements IManager {
         target.dispose();
     }
 
-    /**
-     * 通过层级关闭
-     * @param layer 
-     * @param exceptUINames 
-     */
     public async closeWindowByLayer(layer: UILayerNames, ...exceptUINames: Array<new()=>any>) {
         const dictUINames: Set<new()=>any> = new Set<new()=>any>()
     
@@ -448,11 +406,6 @@ export class UIManager implements IManager {
         await Promise.all(taskScheduler);
     }
 
-    /**
-     * 销毁窗体
-     * @param ui 
-     * @param clear 
-     */
     public async destroyWindow<T extends UIBaseView | void>(ui: (new () => T)| UIBaseView |string, clear:boolean = false){
         const uiName = this.getUIName(ui);
         let target = this.getWindow(uiName);
@@ -473,9 +426,6 @@ export class UIManager implements IManager {
         }
     }
 
-    /**
-     * 销毁隐藏状态的窗口
-     */
     public async destroyUnShowWindow() {
         const taskScheduler:Promise<void>[] = []
         let keys = [...this.windows.keys()]
@@ -491,10 +441,6 @@ export class UIManager implements IManager {
     
     }
 
-    /**
-     * 销毁除指定窗口外所有窗口
-     * @param typeNames 
-     */
     public async destroyWindowExceptNames(...typeNames: Array<new()=>any>){
         const dictUINames: Set<new()=>any> = new Set<new()=>any>()
         if (typeNames != null)
@@ -518,10 +464,6 @@ export class UIManager implements IManager {
         await Promise.all(taskScheduler);
     }
 
-    /**
-     * 销毁指定层级外层级所有窗口
-     * @param layer 
-     */
     public async destroyWindowExceptLayer(layer: UILayerNames) {
     
         const taskScheduler:Promise<void>[] = []
@@ -536,10 +478,6 @@ export class UIManager implements IManager {
         await Promise.all(taskScheduler);
     }
 
-    /**
-     * 销毁指定层级所有窗口
-     * @param layer 
-     */
     public async destroyWindowByLayer(layer: UILayerNames) {
     
         const taskScheduler:Promise<void>[] = []
@@ -554,9 +492,6 @@ export class UIManager implements IManager {
         await Promise.all(taskScheduler);
     }
 
-    /**
-     * 销毁所有窗体
-     */
     public async destroyAllWindow(){
         const taskScheduler:Promise<void>[] = []
         let keys = [...this.windows.keys()]
@@ -567,11 +502,6 @@ export class UIManager implements IManager {
         await Promise.all(taskScheduler);
     }
 
-    /**
-     * 将窗口移到当前层级最上方
-     * @param ui 
-     * @returns 
-     */
     public moveWindowToTop<T extends UIBaseView>(ui: (new() => T) | UIBaseView |string)
     {
         const uiName = this.getUIName(ui);
@@ -591,14 +521,6 @@ export class UIManager implements IManager {
         this.innerAddWindowToStack(target);
     }
 
-    /**
-     * 初始化window
-     * @param type 
-     * @param name 
-     * @param path 
-     * @param layerName 
-     * @returns 
-     */
     private initWindow<T extends UIBaseView>(ui: string | (new () => T), path: string, layerName: UILayerNames): UIWindow {
         const window: UIWindow = UIWindow.create();
         window.name = this.getUIName(ui);
@@ -649,14 +571,10 @@ export class UIManager implements IManager {
     private async innerOpenWindowGetGameObject(path: string, target: UIWindow): Promise<boolean>
     {
         const view = target.view;
-        let UIClass = UE.Class.Find(path);
+        const UIClass = this.loadWidgetClass(path);
         if(!UIClass)
         {
-            UIClass = UE.Class.Load(path);
-        }
-        if(!UIClass)
-        {
-            Log.error(target.name + " class not found at path:"+path);
+            Log.error((target.name?.name || '<unnamed UI>') + " class not found at path:"+path);
             return false;
         }
         const UIRoot = UE.WidgetBlueprintLibrary.Create(Define.Game, UIClass, null) as UE.UserWidget;
@@ -665,7 +583,7 @@ export class UIManager implements IManager {
         if (go == null)
         {
             Log.error(`UIManager InnerOpenWindow ${target.prefabPath} fail`);
-            return;
+            return false;
         }
         view.setWidget(go);
         
@@ -697,10 +615,6 @@ export class UIManager implements IManager {
         }
     }
 
-    /**
-     * 内部关闭窗体，OnDisableSystem
-     * @param target 
-     */
     private innerCloseWindow(target: UIWindow)
     {
         if (target.active)
@@ -726,10 +640,6 @@ export class UIManager implements IManager {
             if (obj)
             {
                 obj.RemoveFromViewport();
-                // if (!GameObjectPoolManager.instance)
-                //     obj.destroy()
-                // else
-                //     GameObjectPoolManager.instance.recycleGameObject(obj, clear);
             }
             const viewAny = view as any;
             if (!!viewAny.onLanguageChange)
@@ -756,7 +666,6 @@ export class UIManager implements IManager {
         view.setActive(true, p1, p2, p3, p4);
         if (isFirst && (layerName == UILayerNames.BackgroundLayer || layerName == UILayerNames.GameBackgroundLayer))
         {
-            //如果是背景layer，则销毁所有的normal层或BackgroundLayer
             await this.closeWindowByLayer(UILayerNames.NormalLayer);
             await this.closeWindowByLayer(UILayerNames.GameLayer);
             await this.closeWindowByLayer(UILayerNames.BackgroundLayer, uiName);
@@ -771,16 +680,11 @@ export class UIManager implements IManager {
         if (uiTrans != null)
         {
             var layer = this.getLayer(target.layer);
-            //重新添加一次移到最上面
             target.canvasSlot = layer.canvas.AddChildToCanvas(uiTrans);
             this.resetCanvasSlot(target.canvasSlot);
         }
     }
 
-    /**
-     * 移除
-     * @param target 
-     */
     private removeFromStack(target: UIWindow)
     {
         var uiName = target.name;
@@ -824,4 +728,3 @@ export class UIManager implements IManager {
     }
 
 }
-

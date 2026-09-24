@@ -44,7 +44,7 @@ export class MapScene extends SceneManagerProvider implements IScene {
     public async onEnter()
     {
         this.win = await UIManager.instance.openWindow<UILoadingView>(UILoadingView, UILoadingView.PrefabPath);
-        this.win.setProgress(0);
+        this.win?.setProgress(0);
     }
 
     public async onLeave()
@@ -64,7 +64,7 @@ export class MapScene extends SceneManagerProvider implements IScene {
 
     public async setProgress(value: number)
     {
-        this.win.setProgress(value);
+        this.win?.setProgress(value);
     }
 
     public async onSwitchSceneEnd()

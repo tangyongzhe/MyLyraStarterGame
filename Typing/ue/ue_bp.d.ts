@@ -33116,6 +33116,20 @@ declare module "ue" {
 
 // __TYPE_DECL_END
 // __TYPE_DECL_START: ASSOCIATION
+    namespace Engine.PythonTypes {
+        class PuertsAutoMixinDelegate__PythonCallable extends UE.PythonCallableForDelegate {
+            constructor(Outer?: Object, Name?: string, ObjectFlags?: number);
+            static StaticClass(): Class;
+            static Find(OrigInName: string, Outer?: Object): PuertsAutoMixinDelegate__PythonCallable;
+            static Load(InName: string): PuertsAutoMixinDelegate__PythonCallable;
+        
+            __tid_PuertsAutoMixinDelegate__PythonCallable_0__: boolean;
+        }
+        
+    }
+
+// __TYPE_DECL_END
+// __TYPE_DECL_START: ASSOCIATION
     namespace ControlRig.Python.RigHierarchy.add_controls_for_selected_PY {
         class add_controls_for_selected extends UE.ToolMenuEntryScript {
             constructor(Outer?: Object, Name?: string, ObjectFlags?: number);
@@ -34483,6 +34497,68 @@ declare module "ue" {
 
 // __TYPE_DECL_END
 // __TYPE_DECL_START: 
+    namespace Niagara.DefaultAssets.Structs.LocationEvent_V2 {
+        class LocationEvent_V2 {
+            constructor();
+            constructor(Vector1_Position_: UE.Vector, Vector2_Velocity_: UE.Vector, Vector3_Acceleration_: UE.Vector, NiagaraID_ParticleID_: UE.NiagaraID, Float1_NormalizedAge_: number, Float2_RandomNormalizedFloat_: number, Float3_DistanceTraveled_: number, LinearColor_ParticleColor_: UE.LinearColor, Boolean_LocalSpace_: boolean);
+            ["Vector 1 (Position)"]: UE.Vector;
+            ["Vector 2 (Velocity)"]: UE.Vector;
+            ["Vector 3 (Acceleration)"]: UE.Vector;
+            ["NiagaraID (ParticleID)"]: UE.NiagaraID;
+            ["Float 1 (NormalizedAge)"]: number;
+            ["Float 2 (RandomNormalizedFloat)"]: number;
+            ["Float 3 (DistanceTraveled)"]: number;
+            ["Linear Color (Particle Color)"]: UE.LinearColor;
+            ["Boolean (Local Space)"]: boolean;
+            /**
+             * @deprecated use StaticStruct instead.
+             */
+            static StaticClass(): ScriptStruct;
+            static StaticStruct(): ScriptStruct;
+            __tid_LocationEvent_V2_0__: boolean;
+        }
+        
+    }
+
+// __TYPE_DECL_END
+// __TYPE_DECL_START: 
+    namespace Game.Effects.Blueprints.SurfaceImpacts {
+        class SurfaceImpacts {
+            constructor();
+            constructor(ImpactPositions: TArray<UE.Vector>, ImpcatNormals: TArray<UE.Vector>);
+            ImpactPositions: TArray<UE.Vector>;
+            ImpcatNormals: TArray<UE.Vector>;
+            /**
+             * @deprecated use StaticStruct instead.
+             */
+            static StaticClass(): ScriptStruct;
+            static StaticStruct(): ScriptStruct;
+            __tid_SurfaceImpacts_0__: boolean;
+        }
+        
+    }
+
+// __TYPE_DECL_END
+// __TYPE_DECL_START: 
+    namespace Game.Characters.Heroes.Mannequin.Animations.AnimModifiers.FootFXAnimModifier_FootDefinition {
+        class FootFXAnimModifier_FootDefinition {
+            constructor();
+            constructor(BoneName: string, NotifyTrackName: string, NotifyType: UE.Class);
+            BoneName: string;
+            NotifyTrackName: string;
+            NotifyType: UE.Class;
+            /**
+             * @deprecated use StaticStruct instead.
+             */
+            static StaticClass(): ScriptStruct;
+            static StaticStruct(): ScriptStruct;
+            __tid_FootFXAnimModifier_FootDefinition_0__: boolean;
+        }
+        
+    }
+
+// __TYPE_DECL_END
+// __TYPE_DECL_START: 
     namespace Game.UI.Foundation.Text.TextStyle$45$Regular {
         class TextStyle$45$Regular_C extends UE.CommonTextStyle {
             constructor(Outer?: Object, Name?: string, ObjectFlags?: number);
@@ -34659,68 +34735,6 @@ declare module "ue" {
             static Load(InName: string): TextStyle$45$Small_C;
         
             __tid_TextStyle$45$Small_C_0__: boolean;
-        }
-        
-    }
-
-// __TYPE_DECL_END
-// __TYPE_DECL_START: 
-    namespace Niagara.DefaultAssets.Structs.LocationEvent_V2 {
-        class LocationEvent_V2 {
-            constructor();
-            constructor(Vector1_Position_: UE.Vector, Vector2_Velocity_: UE.Vector, Vector3_Acceleration_: UE.Vector, NiagaraID_ParticleID_: UE.NiagaraID, Float1_NormalizedAge_: number, Float2_RandomNormalizedFloat_: number, Float3_DistanceTraveled_: number, LinearColor_ParticleColor_: UE.LinearColor, Boolean_LocalSpace_: boolean);
-            ["Vector 1 (Position)"]: UE.Vector;
-            ["Vector 2 (Velocity)"]: UE.Vector;
-            ["Vector 3 (Acceleration)"]: UE.Vector;
-            ["NiagaraID (ParticleID)"]: UE.NiagaraID;
-            ["Float 1 (NormalizedAge)"]: number;
-            ["Float 2 (RandomNormalizedFloat)"]: number;
-            ["Float 3 (DistanceTraveled)"]: number;
-            ["Linear Color (Particle Color)"]: UE.LinearColor;
-            ["Boolean (Local Space)"]: boolean;
-            /**
-             * @deprecated use StaticStruct instead.
-             */
-            static StaticClass(): ScriptStruct;
-            static StaticStruct(): ScriptStruct;
-            __tid_LocationEvent_V2_0__: boolean;
-        }
-        
-    }
-
-// __TYPE_DECL_END
-// __TYPE_DECL_START: 
-    namespace Game.Effects.Blueprints.SurfaceImpacts {
-        class SurfaceImpacts {
-            constructor();
-            constructor(ImpactPositions: TArray<UE.Vector>, ImpcatNormals: TArray<UE.Vector>);
-            ImpactPositions: TArray<UE.Vector>;
-            ImpcatNormals: TArray<UE.Vector>;
-            /**
-             * @deprecated use StaticStruct instead.
-             */
-            static StaticClass(): ScriptStruct;
-            static StaticStruct(): ScriptStruct;
-            __tid_SurfaceImpacts_0__: boolean;
-        }
-        
-    }
-
-// __TYPE_DECL_END
-// __TYPE_DECL_START: 
-    namespace Game.Characters.Heroes.Mannequin.Animations.AnimModifiers.FootFXAnimModifier_FootDefinition {
-        class FootFXAnimModifier_FootDefinition {
-            constructor();
-            constructor(BoneName: string, NotifyTrackName: string, NotifyType: UE.Class);
-            BoneName: string;
-            NotifyTrackName: string;
-            NotifyType: UE.Class;
-            /**
-             * @deprecated use StaticStruct instead.
-             */
-            static StaticClass(): ScriptStruct;
-            static StaticStruct(): ScriptStruct;
-            __tid_FootFXAnimModifier_FootDefinition_0__: boolean;
         }
         
     }

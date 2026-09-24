@@ -2,9 +2,10 @@
 import { I18NManager } from "../I18N/I18NManager";
 import { IOnDestroy } from "../UI/IOnDestroy";
 import { UIBaseContainer } from "../UI/UIBaseContainer";
-import * as UE from 'ue';
+import UE = require('ue');
 import * as string from "../../../Mono/Helper/StringHelper";
 import { Define } from "../../../Mono/Define";
+import { loadWidgetClass } from "../UI/UIWidgetLoader";
 export class UICopyGameObject extends UIBaseContainer implements IOnDestroy{
     public getConstructor(){
         return UICopyGameObject;
@@ -51,14 +52,10 @@ export class UICopyGameObject extends UIBaseContainer implements IOnDestroy{
         
         if(template.startsWith("/")){
             //预制体
-            let itemClass = UE.Class.Find(template);
-            if(!itemClass)
-            {
-                itemClass = UE.Class.Load(template);
-                if(!itemClass) {
-                    Log.error("UIRoot class not found at path:" + template);
-                    return null;
-                }
+            const itemClass = loadWidgetClass(template);
+            if(!itemClass) {
+                Log.error("UIRoot class not found at path:" + template);
+                return null;
             }
             this.template = itemClass;
         }else{

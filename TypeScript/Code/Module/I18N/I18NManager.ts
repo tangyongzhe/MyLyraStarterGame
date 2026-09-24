@@ -11,7 +11,7 @@ import * as string from "../../../Mono/Helper/StringHelper"
 import { ConfigManager } from "../Config/ConfigManager";
 import { I18NConfig, I18NConfigCategory } from "./I18NConfigCategory";
 import { JsonHelper } from "../../../Mono/Helper/JsonHelper";
-import * as UE from 'ue'
+import UE = require('ue')
 export class I18NManager implements IManager {
 
     private static _instance: I18NManager;
@@ -30,15 +30,25 @@ export class I18NManager implements IManager {
     private _i18nTextKeyDic: Map<number, string>
     private _addFonts: boolean
 
+    private resolveDefaultLanguage(): LangType {
+        const currentLanguage = UE.KismetInternationalizationLibrary?.GetCurrentLanguage?.();
+        if (!currentLanguage) {
+            Log.warning("KismetInternationalizationLibrary.GetCurrentLanguage is unavailable during I18NManager.init; defaulting to English.");
+            return LangType.English;
+        }
+
+        return currentLanguage === "zh-Hans-CN"
+            ? LangType.Chinese
+            : LangType.English;
+    }
+
     public init() {
         I18NManager._instance = this;
 
         var lang = CacheManager.instance.getInt(CacheKeys.CurLangType, -1);
         if (lang < 0)
         {
-            this._curLangType = UE.KismetInternationalizationLibrary.GetCurrentLanguage() == "zh-Hans-CN"   
-                ? LangType.Chinese
-                : LangType.English;
+            this._curLangType = this.resolveDefaultLanguage();
         }
         else
         {
@@ -59,11 +69,16 @@ export class I18NManager implements IManager {
     {
         JsonHelper.registerClass(I18NConfigCategory,'I18NConfigCategory');
         JsonHelper.registerClass(I18NConfig,'I18NConfig');
-        var res = await ConfigManager.instance.loadOneConfig(I18NConfigCategory,LangType[this.curLangType]);
+        const res = await ConfigManager.instance.loadOneConfig(I18NConfigCategory,LangType[this.curLangType]);
+        if (!res) {
+            Log.warning(`I18N config is unavailable during init: ${LangType[this.curLangType]}`);
+            return;
+        }
 
-        for (let i = 0; i <res.getAllList().length; i++)
+        const list = res.getAllList();
+        for (let i = 0; i < list.length; i++)
         {
-            var item = res.getAllList()[i];
+            const item = list[i];
             this._i18nTextKeyDic.set(item.id, item.value);
         }
     }
@@ -133,14 +148,19 @@ export class I18NManager implements IManager {
      */
     public async wwitchLanguage(langType: number|LangType)
     {
-        //修改当前语言
         CacheManager.instance.setInt(CacheKeys.CurLangType, langType);
         this._curLangType = langType;
-        var res = await ConfigManager.instance.loadOneConfig(I18NConfigCategory,LangType[this.curLangType]);
+        const res = await ConfigManager.instance.loadOneConfig(I18NConfigCategory,LangType[this.curLangType]);
+        if (!res) {
+            Log.warning(`I18N config is unavailable during language switch: ${LangType[this.curLangType]}`);
+            return;
+        }
+
         this._i18nTextKeyDic.clear();
-        for (let i = 0; i <res.getAllList().length; i++)
+        const list = res.getAllList();
+        for (let i = 0; i < list.length; i++)
         {
-            var item = res.getAllList()[i];
+            const item = list[i];
             this._i18nTextKeyDic.set(item.id, item.value);
         }
 

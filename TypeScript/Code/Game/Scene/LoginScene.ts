@@ -47,7 +47,7 @@ export class HomeScene implements IScene
      */
     public async onEnter(): Promise<void>{
         this.win = await UIManager.instance.openWindow<UILoadingView>(UILoadingView,UILoadingView.PrefabPath);
-        this.win.setProgress(0);
+        this.win?.setProgress(0);
     }
 
     /**
@@ -55,7 +55,7 @@ export class HomeScene implements IScene
      * @param value 
      */
     public async setProgress(value: number): Promise<void>{
-        this.win.setProgress(value);
+        this.win?.setProgress(value);
     }
     /**
      * 场景加载结束：后续资源准备（预加载等）

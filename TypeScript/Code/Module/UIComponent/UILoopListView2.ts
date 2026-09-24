@@ -6,6 +6,7 @@ import { LoopListViewItem2 } from "../../../ThirdParty/SuperScrollView/ListView/
 import { I18NManager } from "../I18N/I18NManager";
 import { IOnDestroy } from "../UI/IOnDestroy";
 import { UIBaseContainer } from "../UI/UIBaseContainer";
+import { loadWidgetClass } from "../UI/UIWidgetLoader";
 import * as string from "../../../Mono/Helper/StringHelper"
 
 export class UILoopListView2 extends UIBaseContainer implements IOnDestroy,IUpdate{
@@ -78,14 +79,10 @@ export class UILoopListView2 extends UIBaseContainer implements IOnDestroy,IUpda
             }
             if(data.startsWith("/")){
                 //预制体
-                let itemClass = Class.Find(data);
-                if(!itemClass)
-                {
-                    itemClass = Class.Load(data);
-                    if(!itemClass) {
-                        Log.error("UIRoot class not found at path:" + data);
-                        return null;
-                    }
+                const itemClass = loadWidgetClass(data);
+                if(!itemClass) {
+                    Log.error("UIRoot class not found at path:" + data);
+                    return null;
                 }
                 configData.mItemPrefab = itemClass;
                 this.loopListView.addItemPrefabConfData(configData);

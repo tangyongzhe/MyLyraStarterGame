@@ -1,4 +1,4 @@
-import * as UE from 'ue';
+import UE = require('ue');
 
 export class Define {
 
